@@ -9,6 +9,12 @@ SECTIONS
         *(.text)
     }
 
+    . = 0x7D00;
+    .data : SUBALIGN(0)
+    {
+        *(.data)
+    }
+    
     .sig : AT(0x7DFE)
     {
         SHORT(0xaa55)

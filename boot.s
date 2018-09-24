@@ -8,7 +8,7 @@ mov %ax, %ds
 # set source index to point to hello string
 mov $(hello-.data), %si
 mov $0, %di
-call write_to_screen
+call vga_print
 
 hang:
     hlt
@@ -42,8 +42,23 @@ enter_pressed:
     int $0x10
     jmp write_to_screen
 
+# put seconds to sleep in %al and call
+sleep:
+    push %bx
+    mov $18,%bx
+    mul %bx
+    pop %bx
+
+    sub $0,%ax
+    jnz sleep_loop
+    ret
+sleep_loop:
+    hlt
+    jmp sleep
 # vga print
 vga_print:
+    mov $1,%al
+    call sleep
     mov $15, %ah
     movb %ds:(%si), %al
     inc %si

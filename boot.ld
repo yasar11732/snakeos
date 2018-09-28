@@ -3,20 +3,38 @@ OUTPUT_FORMAT(binary)
 SECTIONS
 {
     . = 0x7C00;
-    .text : SUBALIGN(0)
+    __start = .;
+
+    .first_stage : 
     {
-        *(.boot)
-        *(.text)
+        build/first_stage.o
     }
 
-    . = 0x7D00;
-    .data : SUBALIGN(0)
+    .sig : AT(0X7DFE)
+    {
+        SHORT(0XAA55);
+    }
+
+    . = ALIGN(512);
+    __second_stage_start = .;
+    .second_stage : 
+    {
+        build/second_stage.o
+    }
+
+    .rodata : ALIGN(512)
+    {
+        *(.rodata)
+    }
+    
+    .data : ALIGN(512)
     {
         *(.data)
     }
-    
-    .sig : AT(0x7DFE)
+
+    .end : ALIGN(512)
     {
-        SHORT(0xaa55)
+        __BINARY_SIZE = ABSOLUTE(. - __start);
     }
+
 }

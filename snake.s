@@ -6,7 +6,7 @@ setup:
     # setup stack segment
     xor %ax, %ax
     mov %ax, %ss
-    mov $0x7bf, %ax
+    mov $0x7C00, %ax
     mov %ax, %sp
 
     # setup data segment
@@ -25,26 +25,10 @@ init_random_value:
 
 register_interrupt_handlers:
     cli
-    # timer (int $0x08)
-    push %es
-    push $0
-    pop %es
-
-    # IRQ0->INT 8 (4*8 = 32)
-    mov $32,%bx
-
-    movw $timer_handler,%es:(%bx)
-    inc %bx
-    inc %bx
-    movw $0,%es:(%bx)
-    inc %bx
-    inc %bx
-    movw $keyboard_handler,%es:(%bx)
-    inc %bx
-    inc %bx
-    movw $0,%es:(%bx)
-
-    pop %es
+    movw $timer_handler,(32)
+    movw $0,(34)
+    movw $keyboard_handler,(36)
+    movw $0,(38)
     sti
 
 busy_loop:
@@ -81,7 +65,7 @@ keyboard_handler:
     popa
     iret
 
-/* Returns 16bit pseudo-random number in ax */
+/* Returns 16bit pseudo-random number in ax, other registers are preserved */
 .global get_random
 .type get_random,@function
 get_random:

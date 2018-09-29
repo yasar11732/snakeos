@@ -32,7 +32,7 @@ register_interrupt_handlers:
     movw $0,(38)
     sti
 
-
+/*
 busy_loop:
     mov timer_ticks,%ax
     add $1,%ax
@@ -52,6 +52,7 @@ stop_waiting:
     mov $0xA,%al
     int $0x10
     jmp busy_loop
+*/
 
 timer_handler:
     pusha
@@ -66,7 +67,9 @@ keyboard_handler:
     pusha
     in $0x60,%al
     mov %al,scancode
-    
+    mov $0,%ah
+    call printd
+    call printnewline
     mov $0x20,%al
     out %al,$0x20
     popa
@@ -112,6 +115,14 @@ printd_quit:
     pop %bx
     ret
 
+printnewline:
+    mov $0x0E,%ah
+    mov $0xD,%al
+    int $0x10
+    mov $0xA,%al
+    int $0x10
+    ret
+    
 random:
     .2byte 0x0
 timer_ticks:

@@ -1,17 +1,18 @@
 .code16
 .text
 
+# calling convention: pass arguments and return values using registers
+# all registers except %ax is calee saved, %ax is caller saved
+
 setup:
     cli
     # setup stack segment
     xor %ax, %ax
     mov %ax, %ss
+    mov %ax, %ds
+
     mov $0x7C00, %ax
     mov %ax, %sp
-
-    # setup data segment
-    xor %ax,%ax
-    mov %ax, %ds
 
     # setup video memory
     mov $0xB800, %ax
@@ -31,19 +32,25 @@ register_interrupt_handlers:
     movw $0,(38)
     sti
 
+
 busy_loop:
     mov timer_ticks,%ax
-    add $18,%ax
+    add $1,%ax
 _wait:
     mov timer_ticks,%bx
     cmp %ax,%bx
-    jg stop_waiting
+    jge stop_waiting
     hlt
     jmp _wait
 stop_waiting:
     call get_random
-    mov $0x0E, %ah
-    int $0x10 # output random value
+    call printd
+
+    mov $0x0E,%ah
+    mov $0xD,%al
+    int $0x10
+    mov $0xA,%al
+    int $0x10
     jmp busy_loop
 
 timer_handler:
@@ -65,7 +72,7 @@ keyboard_handler:
     popa
     iret
 
-/* Returns 16bit pseudo-random number in ax, other registers are preserved */
+/* Returns 16bit pseudo-random number in ax */
 .global get_random
 .type get_random,@function
 get_random:
@@ -78,13 +85,42 @@ get_random:
     pop %bx
     ret
 
-.data
-.align 2
+# print decimal representation of a %ax
+.global printd
+.type printd,@function
+printd:
+    push %bx
+    push %dx
+    push $10 # end of digits in stack
+    mov $10,%bx
+divide_loop:
+    mov $0,%dx
+    div %bx
+    push %dx
+    or %ax,%ax
+    jnz divide_loop
+print_loop:
+    pop %ax
+    cmp $10,%ax
+    je printd_quit
+    mov $0x0E,%ah
+    add $48,%al
+    int $0x10
+    jmp print_loop
+printd_quit:
+    pop %dx
+    pop %bx
+    ret
+
 random:
-    .2byte 0
-
+    .2byte 0x0
 timer_ticks:
-    .2byte 0
-
+    .2byte 0x0
 scancode:
-    .2byte 0
+    .2byte 0x0
+cursorx:
+    .byte 0x0
+cursory:
+    .byte 0x0
+terminalcolor:
+    .2byte 0x15

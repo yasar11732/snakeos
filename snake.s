@@ -62,25 +62,25 @@ copy_snake:
     jne copy_snake
     pop %es
 
-busy_loop:
     /* set callback for loop snake */
     mov $draw_snake,%bx
 
-    /* wait 0.5 secs and draw snake */
-    mov $0x0f09,%cx
+busy_loop:
+
     mov $500,%ax
     call sleep
+
+    mov $0x0,%cx
     call loop_snake
     
-    /* wait 0.5 secs and delete snake */
-    mov $0x0,%cx
-    mov $500,%ax
-    call sleep
+    call mov_snake
+
+    mov $0x0f09,%cx
     call loop_snake
 
     jmp busy_loop
 
-/* foreach part of the snake, call bx with position in ax
+/*  foreach part of the snake, call bx with position in ax
     cx and dx is preserved before calling bx, so they can
     be used to pass extra parameters
 */
@@ -103,6 +103,45 @@ draw_snake:
     call snake_to_screen
     mov %ax,%di
     mov %cx,%es:(%di)
+    ret
+
+len_snake:
+    inc %cx
+    ret
+
+mov_snake:
+    pusha
+    push %es
+    push %ds
+
+    mov $snake_segment,%ax
+    mov %ax,%ds
+    mov %ax,%es
+
+    mov $len_snake,%bx
+    xor %cx,%cx
+    call loop_snake
+    dec %cx
+    shl $1,%cx
+    mov %cx,%di
+    sub $2,%cx
+    mov %cx,%si
+    std
+mov_snake0:
+    lodsw
+    stosw
+    or %di,%di
+    jz mov_snake1
+    jmp mov_snake0
+mov_snake1:
+    cld
+    # at this point, %ax contains head, lets increment x coord
+    inc %al
+    stosw
+
+    pop %ds
+    pop %es
+    popa
     ret
 
 /* put milliseconds to sleep in %ax, %ax trashed */
@@ -185,9 +224,14 @@ vert2:
 .global get_random
 .type get_random,@function
 get_random:
+    push %bx
     mov random,%ax
+    mov $5,%bx
+    mul %bx
+    inc %ax
     xor timer_ticks,%ax
     mov %ax,random
+    pop %bx
     ret
 
 .align 4

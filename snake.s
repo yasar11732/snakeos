@@ -32,9 +32,7 @@ setup:
     mov %ax, %di
     mov %ax, %si
 
-    # timer and keyboard handlers
-    movw $timer_handler,(32)
-    mov %ax,(34)
+    # keyboard handler
     movw $keyboard_handler,(36)
     mov %ax,(38)
 
@@ -67,7 +65,7 @@ copy_snake:
 
 busy_loop:
 
-    mov $500,%ax
+    mov $100,%ax
     call sleep
 
     mov $0x0,%cx
@@ -113,6 +111,9 @@ mov_snake:
     pusha
     push %es
     push %ds
+    
+    # update current direction
+
 
     mov $snake_segment,%ax
     mov %ax,%ds
@@ -134,29 +135,38 @@ mov_snake0:
     jz mov_snake1
     jmp mov_snake0
 mov_snake1:
-    cld
-    # at this point, %ax contains head, lets increment x coord
-    inc %al
-    stosw
-
+    
+    # at this point, %ax contains head
+    # update direction
+    # ! important ! fix ds for these references to work
+    # ! important ! don't fix es yet, for stos to work
     pop %ds
+    mov nextdirection,%bx
+    mov %bx,direction
+    add %bx,%ax # get new head coordinates
+    stosw
+    cld
     pop %es
     popa
     ret
 
 /* put milliseconds to sleep in %ax, %ax trashed */
 sleep:
+    push %cx
     push %bx
-    mov timer_ticks,%bx
-    add %bx,%ax
+
+    mov 0x46C,%cx                # cx = starting tick
 sleep0:
-    mov timer_ticks,%bx
-    cmp %bx,%ax
-    jle sleep1
+    mov 0x46C,%bx                # bx = current tick
+    sub %cx,%bx                  # bx = current tick - starting tick = time passed
+
+    cmp %ax,%bx
+    jae sleep1                   # If time passed >= delay exit the loop
     hlt
     jmp sleep0
 sleep1:
     pop %bx
+    pop %cx
     ret
 
 /* Convert snake coordinates into video memory index
@@ -187,37 +197,32 @@ irq_return:
     popa
     iret
 
-timer_handler:
-    pusha
-    incw timer_ticks
-    jmp irq_return
-
 keyboard_handler:
     pusha
     in $0x60,%al
 
     mov direction,%bx
-    test $1,%bl
+    or %bl,%bl # if low byte of direction is zero, we are movin vertically
     jz vert
 horiz:
-    cmp $0x11,%al
+    cmp $0x11,%al # w pressed
     jne horiz2
-    movb $0,direction
+    movw $0xff00,nextdirection
     jmp irq_return
 horiz2:
-    cmp $0x1F,%al
+    cmp $0x1F,%al # s pressed
     jne irq_return
-    movb $0x2,direction
+    movw $0x0100,nextdirection
     jmp irq_return
 vert:
-    cmp $0x20,%al
+    cmp $0x20,%al # d pressed
     jne vert2
-    movb $0x1,direction
+    movw $0x0001,nextdirection
     jmp irq_return
 vert2:
     cmp $0x1E,%al
     jne irq_return
-    movb $0x3,direction
+    movw $0x00ff,nextdirection
     jmp irq_return
 
 /* Returns 16bit pseudo-random number in ax */
@@ -234,7 +239,7 @@ get_random:
     pop %bx
     ret
 
-.align 4
+.align 2
 random:
     .2byte 0x0
 timer_ticks:
@@ -244,4 +249,6 @@ initial_snake:
     .byte 39,13,40,13,41,13,42,13,0xff,0xff
 
 direction:
-    .byte 0x1
+    .2byte 0x0001
+nextdirection:
+    .2byte 0x0001

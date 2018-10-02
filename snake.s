@@ -16,21 +16,10 @@ setup:
     mov $0xB800, %ax
     mov %ax, %es
 
-    # setup timer freq (once per milliseconds)
-    mov $1193,%bx
-    mov $0x36,%al
-    out %al,$0x43
-    mov %bl,%al
-    out %al,$0x40
-    mov %bh,%al
-    out %al,$0x40
-
     # initialize segments
     xor %ax, %ax
     mov %ax, %ss
     mov %ax, %ds
-    mov %ax, %di
-    mov %ax, %si
 
     # keyboard handler
     movw $keyboard_handler,(36)
@@ -39,33 +28,30 @@ setup:
     sti
 
 init_random_value:
-    # ax is assumed to be 0 at this point
-    int $0x1a
+    mov 0x46C,%dx
     mov %dx,random
    
    
 copy_snake_prepare:
     # copy initial state of snake into 0x7E00
-    push %es
-    mov $0x7E0,%ax
-    mov %ax,%es
-    mov $initial_snake,%si
-    xor %di,%di
+    mov $0x7E00,%bx
+    mov $0x0D27,%ax
+    mov $4,%cx
     
 copy_snake:
+    mov %ax,(%bx)
+    inc %ax
+    add $2,%bx
+    loop copy_snake
 
-    lodsw
-    stosw
-    cmp $0xffff,%ax
-    jne copy_snake
-    pop %es
-
+copy_snake_finalize:
+    movw $0xFFFF,(%bx)
     /* set callback for loop snake */
     mov $draw_snake,%bx
 
 busy_loop:
 
-    mov $100,%ax
+    mov $18,%cx
     call sleep
 
     mov $0x0,%cx
@@ -143,30 +129,23 @@ mov_snake1:
     pop %ds
     mov nextdirection,%bx
     mov %bx,direction
-    add %bx,%ax # get new head coordinates
+    
+    # calculate new head location based on direction
+    add %bl,%al 
+    add %bh,%ah
     stosw
     cld
     pop %es
     popa
     ret
 
-/* put milliseconds to sleep in %ax, %ax trashed */
+/* put ticks to sleep in cx,
+ * this assumes other interrupts except for timer is negligible (for simplicity)
+ * cx is trashed
+ */
 sleep:
-    push %cx
-    push %bx
-
-    mov 0x46C,%cx                # cx = starting tick
-sleep0:
-    mov 0x46C,%bx                # bx = current tick
-    sub %cx,%bx                  # bx = current tick - starting tick = time passed
-
-    cmp %ax,%bx
-    jae sleep1                   # If time passed >= delay exit the loop
     hlt
-    jmp sleep0
-sleep1:
-    pop %bx
-    pop %cx
+    loop sleep
     ret
 
 /* Convert snake coordinates into video memory index
@@ -220,7 +199,7 @@ vert:
     movw $0x0001,nextdirection
     jmp irq_return
 vert2:
-    cmp $0x1E,%al
+    cmp $0x1E,%al # a pressed
     jne irq_return
     movw $0x00ff,nextdirection
     jmp irq_return
@@ -231,10 +210,8 @@ vert2:
 get_random:
     push %bx
     mov random,%ax
-    mov $5,%bx
-    mul %bx
-    inc %ax
-    xor timer_ticks,%ax
+    mov 0x46C,%bx
+    xor %bx,%ax
     mov %ax,random
     pop %bx
     ret
@@ -242,12 +219,6 @@ get_random:
 .align 2
 random:
     .2byte 0x0
-timer_ticks:
-    .2byte 0x0
-
-initial_snake:
-    .byte 39,13,40,13,41,13,42,13,0xff,0xff
-
 direction:
     .2byte 0x0001
 nextdirection:

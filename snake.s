@@ -12,10 +12,6 @@ setup:
     mov $0x7C00, %ax
     mov %ax, %sp
 
-    # pointer to video memory
-    mov $0xB800, %ax
-    mov %ax, %es
-
     # initialize segments
     xor %ax, %ax
     mov %ax, %ss
@@ -30,20 +26,22 @@ init_random_value:
    
 init_game:
     # copy initial state of snake into 0x7E00
-    mov $0x7E00,%bx
-    mov $0x876,%ax
-    mov $4,%cx
+    mov $0x7E0,%ax
+    mov %ax,%es
+    mov %ax,%ds
+    mov $4,%ax
+    xor %di,%di
+    stosw
     
+    mov %ax,%cx
+    mov $0x876,%ax
+
 init_snake:
-    mov %ax,(%bx)
+    stosw
     dec %ax
     dec %ax
-    inc %bx
-    inc %bx
     loop init_snake
-    movw $0xFFFF,(%bx)
-    /* set callback for loop snake */
-    mov $draw_snake,%bx
+
     mov $2,%dx # current direction
 
 game_loop:
@@ -53,13 +51,13 @@ sleep:
     hlt
     loop sleep
     
-    # handle a keypress
-    mov $1,%ah
+handle_keypress:
+    mov $1,%ah       # check if keypress is availabe
     int $0x16
     jz keypress_done # keypress is not available
-    mov $0,%ah # get keypress
+    mov $0,%ah       # get keypress
     int $0x16
-    test $0xF,%dx # this is 0 if we are moving vertically
+    test $0xF,%dx    # this is 0 if we are moving vertically
     jz moving_vert1
 moving_horiz1:
     cmp $'w',%al
@@ -79,82 +77,37 @@ moving_vert2:
     mov $-2,%dx
 
 keypress_done:
-    # cx is zero here because of sleep loop
-    call loop_snake
-    call mov_snake
-    mov $0x0f09,%cx
-    call loop_snake
-    jmp game_loop
-
-/*  foreach part of the snake, call bx with position in ax
-    cx and dx is preserved before calling bx, so they can
-    be used to pass extra parameters
-*/
-loop_snake:
-    push %ds
-    push $snake_segment
-    pop %ds
-    xor %si,%si
-loop_snake0:
-    lodsw
-    cmp $0xffff,%ax
-    je loop_snake1
-    call %bx
-    jmp loop_snake0
-loop_snake1:
-    pop %ds
-    ret
-
-draw_snake:
-    mov %ax,%di
-    mov %cx,%es:(%di)
-    ret
-
-len_snake:
-    inc %cx
-    ret
 
 mov_snake:
-    pusha
-    push %es
-    push %ds
-    
-    # update current direction
-
-
-    mov $snake_segment,%ax
-    mov %ax,%ds
-    mov %ax,%es
-
-    mov $len_snake,%bx
-    xor %cx,%cx
-    call loop_snake
-    dec %cx
-    shl $1,%cx
-    mov %cx,%di
-    sub $2,%cx
-    mov %cx,%si
-    std
-mov_snake0:
+    xor %si,%si
+    lodsw       # ax = length of snake
+    std         # we will loop backwards
+    mov %ax,%si
+    shl $1,%si  # x2 because we are using words
+    mov %si,%di
+    lodsw       # ax = tail of snake in screen
+    push %ax    # save tail in stack
+mov_snake_loop:
     lodsw
     stosw
-    or %di,%di
-    jz mov_snake1
-    jmp mov_snake0
-mov_snake1:
+    or %si,%si
+    jnz mov_snake_loop
     
-    # at this point, %ax contains head
-    # update direction
-    # ! important ! fix ds for these references to work
-    # ! important ! don't fix es yet, for stos to work
-    pop %ds
-    add %dx,%ax
-    stosw
-    cld
+    # at this point ax is the old head
+    add %dx,%ax # calculate new head
+    stosw       # put new head
+    
+    pop %di
+    push %es
+    mov $0xB800,%bx
+    mov %bx,%es
+    movw $0x0000,%es:(%di)
+    mov %ax,%di            
+    movw $0x0F09,%es:(%di)
+    
     pop %es
-    popa
-    ret
 
+    jmp game_loop
 
 /* Returns 16bit pseudo-random number in ax */
 .global get_random

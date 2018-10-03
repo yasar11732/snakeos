@@ -3,8 +3,6 @@
 .set snake_pointer,0x7E00
 .set snake_segment,0x7E0
 
-# calling convention: pass arguments and return values using registers
-# all registers except %ax is calee saved, %ax is caller saved
 start:
 setup:
     cli
@@ -93,19 +91,22 @@ mov_snake_loop:
     or %si,%si
     jnz mov_snake_loop
     
-    # at this point ax is the old head
-    add %dx,%ax # calculate new head
-    stosw       # put new head
     
-    pop %di
-    push %es
+    add %dx,%ax # head = head + direction
+    stosw       
+
+    pop %di             # b800:di => position of old tail in screen
+    
+    push %es 
     mov $0xB800,%bx
-    mov %bx,%es
-    movw $0x0000,%es:(%di)
-    mov %ax,%di            
-    movw $0x0F09,%es:(%di)
+    mov %bx,%es         # es = b800 (pointer to video mem)
     
-    pop %es
+    
+    movw $0x0000,%es:(%di)  # old tail is blank 
+    mov %ax,%di            
+    movw $0x0F09,%es:(%di)  # new head is dot
+    
+    pop %es            # es  = 7e0 (pointer to snake)
 
     jmp game_loop
 
@@ -123,4 +124,6 @@ get_random:
 
 .align 2
 random:
+    .2byte 0x0
+bait:
     .2byte 0x0
